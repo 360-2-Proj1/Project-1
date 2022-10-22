@@ -106,16 +106,16 @@ $UPPER   DS    F              UPPER BOUND
 *
 ******************************************************************
 *
-* OUTPUT BUFFER DSECT
+* CUSTOMER TABLE OUTPUT BUFFER DSECT
 *
 ******************************************************************
 *
-*$OBUFFER DSECT               OUTPUT BUFFER FORMAT
-*         DS    CL4           LEFT MARGAIN
-*$0CUSTID DS    F             CUSTOMER ID
-*$OCUSTNM DS    CL20          CUSTOMER NAME
-*$OSHPADR DS    CL30          SHIPPING ADDRESS
-*$ORGSLTX DS    F             REGIONAL SALES TAX
+$CTBOBUF DSECT               OUTPUT BUFFER FORMAT
+         DS    CL4           LEFT MARGAIN
+$OCUSTID DS    F             CUSTOMER ID
+$OCUSTNM DS    CL20          CUSTOMER NAME
+$OSHPADR DS    CL30          SHIPPING ADDRESS
+$ORGSLTX DS    F             REGIONAL SALES TAX
 *
 ******************************************************************
 *
@@ -265,14 +265,63 @@ FSCREAD  DS    0H
 *
 * READ PROCESS FOR ORDER DATA TABLE ENDS
 *
-* DUMP TABLES
+* DUMP TABLES & DROP REGS
 *
 ******************************************************************
 *
 ENDREAD  DS    0H
+         DROP  2             NOT DROPPED USED IN NEXT LOOP
+         DROP  3
+         DROP  6
+         DROP  7
+         DROP  9
+         DROP  10
          XDUMP CUSTTBL,60*10
          XDUMP ORDTBL,40*30
          XDUMP FISCTBL,12*16
+*
+******************************************************************
+*
+* NEW TESTING FIELD
+*
+* BEGIN PRINT PROCESS
+*
+******************************************************************
+*
+         USING $CUSTINF,2
+         LA    2,CUSTTBL      CURRENT ROW OFFSET
+         LA    3,CTBLEND      CUSTOMER DATA TABLE END ADDRESS
+         LA    4,OUTREG       R4:= HEAD OF PRINTABLE BUFFER REGION
+         B     CTENDCHK       BRANCH TO CHECK IF AT TABLE END
+*
+******************************************************************
+*
+* PRINT LOOP BEGINS
+*
+******************************************************************
+*
+PRNTCST  DS    0H
+         USING $CTBOBUF,4     USE R4 AS BASE FOR $CTBOBUF
+*
+         L     7,$CUSTID      LOAD VAL FROM FIRST COL
+         XDECO 7,$OCUSTID     WRITE TO OUTPUT BUFFER
+*vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+         L     7,$CUSTNM      LOAD VAL FROM SECONF COL
+         XDECO 7,$OCUSTNM     WRITE TO OUTPUT BUFFER
+*^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ HAVE TO USE MVC INSTEAD
+*vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+         L     7,$SHPADDR     LOAD VAL FROM THIRD COL
+         XDECO 7,$OSHPADR     WRITE TO OUTPUT BUFFER
+*^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ HAVE TO USE MVC INSTEAD
+         L     7,$RGSLSTX     LOAD VAL FROM FOURTH COL
+         XDECO 7,$ORGSLTX     WRITE TO OUTPUT BUFFER
+*
+         DROP  2,4
+*
+         XPRNT PRNTLINE,133
+         LA    2,60(,2)       INCR (BASE) ROW OFFSET TO NEXT ROW
+CTENDCHK CR    2,3            COMPARE IF R2 = END OF TABLE
+         BNE   PRNTCST        BRANCH TOP OF LOOP IF NO (NEXT RECORD)
 *
 ******************************************************************
 *
@@ -296,18 +345,21 @@ PRGEXIT  LA    15,0           R15 = RETURN CODE OF 0
 *
 MAINSAVE DC    18F'-1'
 IBUFFER  DS    CL80           INPUT BUFFER
-         DC    C'*'
-OBUFFER  DC    C' '           USE SINGLE SPACING
-         DC    CL132' '       EMPTY SPACE OUTPUT BUFFER
+*
+PRNTLINE DC    C' '           CAIRRAGE CONTROL CHARACTER
+OUTREG   DC    CL132' '       PRINTABLE REGION
 *
          DS    0F
-CUSTTBL  DS    10CL60         CUSTOMER INFORMATION TABLE
+CUSTTBL  DS    10CL60         CUSTOMER INFORMATION TABLE 10 X 60 BYTES
+CTBLEND  DS    0H             END OF CUSTOMER DATA TABLE
 *
          DS    0F
-ORDTBL   DS    30CL40         ORDER INFORMATION TABLE
+ORDTBL   DS    30CL40         ORDER INFORMATION TABLE 30 X 40 BYTES
+ORTBLEND DS    0H             END OF ORDER DATA TABLE
 *
          DS    0F
-FISCTBL  DS    12CL16         FICAL PREDICTIOM TABLE
+FISCTBL  DS    12CL16         FICAL PREDICTION TABLE 12 X 16 BYTES
+FSCTBEND DS    0H             END OF FISCAL PREDICTION TABLE
 *
          END   MAIN
 /*
